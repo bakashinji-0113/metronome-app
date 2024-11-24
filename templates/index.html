@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Metronome App</title>
+    <style>
+        .indicator-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .indicator {
+            width: 30px;
+            height: 30px;
+            margin: 5px;
+            border-radius: 50%;
+            background-color: lightgray;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .indicator.active {
+            background-color: orange;
+        }
+        .indicator.strong {
+            background-color: red;
+        }
+        .indicator.weak {
+            background-color: yellow;
+        }
+    </style>
+</head>
+<body>
+    <h1>Metronome App</h1>
+    <label for="bpm">Set BPM:</label>
+    <input type="number" id="bpm" value="120" min="1" max="320">
+    <button onclick="startMetronome()">Start</button>
+    <button onclick="stopMetronome()">Stop</button>
+
+    <label for="tempo">Set Tempo (1-16):</label>
+    <input type="number" id="tempo" value="4" min="1" max="16" onchange="setupIndicators()">
+
+    <div class="indicator-container" id="indicatorContainer">
+        <!-- 拍インジケーターを動的に生成 -->
+    </div>
+
+    <script>
+        let intervalId;
+
+        // 音源ファイルのロード（強拍: 高音、弱拍: 低音）
+        const sounds = [
+            new Audio('/static/click_high.mp3'), // 強拍
+            new Audio('/static/click_low.mp3')  // 弱拍
+        ];
+
+        let accents = [0, 1, 0, 1]; // 初期値（0: 強拍, 1: 弱拍）
+
+        // 拍ごとのインジケーターをセットアップ
+        function setupIndicators() {
+            const container = document.getElementById("indicatorContainer");
+            const tempo = parseInt(document.getElementById("tempo").value, 10);
+            container.innerHTML = ""; // インジケーターをリセット
+
+            for (let i = 0; i < tempo; i++) {
+                const div = document.createElement("div");
+                div.classList.add("indicator");
+                div.dataset.index = i; // 拍の番号を保存
+                div.onclick = () => toggleAccent(i); // クリックで強弱を切り替え
+
+                // 初期状態を反映
+                if (accents[i % accents.length] === 0) {
+                    div.classList.add("strong");
+                } else {
+                    div.classList.add("weak");
+                }
+
+                container.appendChild(div);
+            }
+        }
+
+        // 強弱を切り替える
+        function toggleAccent(index) {
+            accents[index % accents.length] = accents[index % accents.length] === 0 ? 1 : 0; // 強拍⇔弱拍を切り替え
+            setupIndicators(); // UIを更新
+        }
+
+        // 現在の拍をハイライト
+        function updateIndicator(currentBeat, tempo) {
+            const indicators = document.querySelectorAll(".indicator");
+            indicators.forEach((indicator, index) => {
+                indicator.classList.remove("active");
+                if (index === currentBeat % tempo) {
+                    indicator.classList.add("active");
+                }
+            });
+        }
+
+        // 音を再生
+        function playClick(index) {
+            const sound = sounds[accents[index % accents.length]];
+            sound.currentTime = 0;
+            sound.play();
+        }
+
+        // メトロノームを開始
+        function startMetronome() {
+            const bpm = parseInt(document.getElementById("bpm").value, 10);
+            const tempo = parseInt(document.getElementById("tempo").value, 10);
+            const intervalTime = (60000 / bpm);
+
+            stopMetronome(); // 二重再生防止
+
+            let beat = 0;
+            intervalId = setInterval(() => {
+                playClick(beat);
+                updateIndicator(beat, tempo);
+                beat++;
+            }, intervalTime);
+        }
+
+        // メトロノームを停止
+        function stopMetronome() {
+            clearInterval(intervalId);
+        }
+
+        // 初期状態のインジケーターを設定
+        setupIndicators();
+    </script>
+</body>
+</html>
