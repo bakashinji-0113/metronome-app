@@ -1,128 +1,193 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Metronome App</title>
+    <title>Metronome Tempo Bars</title>
     <style>
-        .indicator-container {
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+
+        #tempo-container {
             display: flex;
-            justify-content: center;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 200px;
+            width: 70%;
+            margin: 20px auto;
+            background-color: #f4f4f4;
+            border: 1px solid #ccc;
+        }
+
+        .tempo-bar {
+            width: 50px;
+            background-color: lightblue;
+            transition: background-color 0.2s, height 0.2s;
+            cursor: pointer;
+        }
+
+        .tempo-bar[data-volume="strong"] {
+            height: 170px; /* 強 */
+        }
+
+        .tempo-bar[data-volume="weak"] {
+            height: 100px; /* 弱 */
+        }
+
+        .tempo-bar[data-volume="none"] {
+            height: 40px; /* 無 */
+        }
+
+        .tempo-bar.active {
+            background-color: blue; /* 再生中のバーを濃い色に */
+        }
+
+        .controls {
             margin-top: 20px;
         }
-        .indicator {
-            width: 30px;
-            height: 30px;
+
+        .controls input,
+        .controls button {
             margin: 5px;
-            border-radius: 50%;
-            background-color: lightgray;
-            cursor: pointer;
-            transition: background-color 0.2s;
         }
-        .indicator.active {
-            background-color: orange;
-        }
-        .indicator.strong {
-            background-color: red;
-        }
-        .indicator.weak {
-            background-color: yellow;
+
+        #slider {
+            width: 300px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <h1>Metronome App</h1>
-    <label for="bpm">Set BPM:</label>
-    <input type="number" id="bpm" value="120" min="1" max="320">
-    <button onclick="startMetronome()">Start</button>
-    <button onclick="stopMetronome()">Stop</button>
+    <h1>Metronome Tempo Bars</h1>
+    <div id="tempo-container">
+        <div class="tempo-bar" data-volume="strong"></div>
+        <div class="tempo-bar" data-volume="weak"></div>
+        <div class="tempo-bar" data-volume="weak"></div>
+        <div class="tempo-bar" data-volume="weak"></div>
+    </div>
 
-    <label for="tempo">Set Tempo (1-16):</label>
-    <input type="number" id="tempo" value="4" min="1" max="16" onchange="setupIndicators()">
-
-    <div class="indicator-container" id="indicatorContainer">
-        <!-- 拍インジケーターを動的に生成 -->
+    <div class="controls">
+        <label for="bpm">BPM:</label>
+        <input type="number" id="bpm" value="120" min="1" max="320">
+        <button id="minus">-</button>
+        <button id="plus">+</button>
+        <button id="start">Start</button>
+        <button id="stop">Stop</button>
+        <input type="range" id="slider" min="1" max="320" value="120">
     </div>
 
     <script>
-        let intervalId;
+        const sounds = {
+            strong: new Audio('/static/click_strong.mp3'),
+            weak: new Audio('/static/click_weak.mp3'),
+            none: null // 音なし
+        };
 
-        // 音源ファイルのロード（強拍: 高音、弱拍: 低音）
-        const sounds = [
-            new Audio('/static/click_high.mp3'), // 強拍
-            new Audio('/static/click_low.mp3')  // 弱拍
-        ];
+        let currentBeat = 0;
+        let intervalId = null;
 
-        let accents = [0, 1, 0, 1]; // 初期値（0: 強拍, 1: 弱拍）
+        // BPMに基づいて間隔を計算
+        function getInterval(bpm) {
+            return (60 / bpm) * 1000;
+        }
 
-        // 拍ごとのインジケーターをセットアップ
-        function setupIndicators() {
-            const container = document.getElementById("indicatorContainer");
-            const tempo = parseInt(document.getElementById("tempo").value, 10);
-            container.innerHTML = ""; // インジケーターをリセット
+        // 再生中のバーを濃い色にする処理
+        function highlightCurrentBar() {
+            const bars = document.querySelectorAll('.tempo-bar');
+            bars.forEach((bar, index) => {
+                bar.classList.toggle('active', index === currentBeat);
+            });
 
-            for (let i = 0; i < tempo; i++) {
-                const div = document.createElement("div");
-                div.classList.add("indicator");
-                div.dataset.index = i; // 拍の番号を保存
-                div.onclick = () => toggleAccent(i); // クリックで強弱を切り替え
+            const currentBar = bars[currentBeat];
+            const volumeType = currentBar.dataset.volume;
 
-                // 初期状態を反映
-                if (accents[i % accents.length] === 0) {
-                    div.classList.add("strong");
-                } else {
-                    div.classList.add("weak");
-                }
+            if (volumeType !== 'none' && sounds[volumeType]) {
+                sounds[volumeType].currentTime = 0;
+                sounds[volumeType].play();
+            }
 
-                container.appendChild(div);
+            currentBeat = (currentBeat + 1) % bars.length;
+        }
+
+        // 再生開始処理
+        document.getElementById('start').addEventListener('click', () => {
+            if (intervalId) return;
+
+            const bpm = parseInt(document.getElementById('bpm').value);
+            currentBeat = 0; // 最初の拍から開始
+            intervalId = setInterval(highlightCurrentBar, getInterval(bpm));
+        });
+
+        // 再生停止処理
+        document.getElementById('stop').addEventListener('click', () => {
+            clearInterval(intervalId);
+            intervalId = null;
+            currentBeat = 0;
+        });
+
+        // BPM変更時に反映
+        function updateBpm(newBpm) {
+            const bpmInput = document.getElementById('bpm');
+            const slider = document.getElementById('slider');
+            bpmInput.value = newBpm;
+            slider.value = newBpm;
+
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = setInterval(highlightCurrentBar, getInterval(newBpm));
             }
         }
 
-        // 強弱を切り替える
-        function toggleAccent(index) {
-            accents[index % accents.length] = accents[index % accents.length] === 0 ? 1 : 0; // 強拍⇔弱拍を切り替え
-            setupIndicators(); // UIを更新
-        }
+        document.getElementById('bpm').addEventListener('change', (e) => {
+            updateBpm(parseInt(e.target.value));
+        });
 
-        // 現在の拍をハイライト
-        function updateIndicator(currentBeat, tempo) {
-            const indicators = document.querySelectorAll(".indicator");
-            indicators.forEach((indicator, index) => {
-                indicator.classList.remove("active");
-                if (index === currentBeat % tempo) {
-                    indicator.classList.add("active");
-                }
+        document.getElementById('minus').addEventListener('click', () => {
+            const currentBpm = parseInt(document.getElementById('bpm').value);
+            if (currentBpm > 1) updateBpm(currentBpm - 1);
+        });
+
+        document.getElementById('plus').addEventListener('click', () => {
+            const currentBpm = parseInt(document.getElementById('bpm').value);
+            if (currentBpm < 320) updateBpm(currentBpm + 1);
+        });
+
+        document.getElementById('slider').addEventListener('input', (e) => {
+            updateBpm(parseInt(e.target.value));
+        });
+
+        // テンポバーの強弱調整（ドラッグで高さを変更）
+        document.querySelectorAll('.tempo-bar').forEach(bar => {
+            bar.addEventListener('mousedown', (e) => {
+                const startY = e.clientY;
+                const initialHeight = parseInt(window.getComputedStyle(bar).height);
+
+                const onMouseMove = (e) => {
+                    const newHeight = initialHeight - (e.clientY - startY);
+                    const clampedHeight = Math.max(40, Math.min(200, newHeight));
+
+                    if (clampedHeight >= 150) {
+                        bar.style.height = '170px';
+                        bar.dataset.volume = 'strong';
+                    } else if (clampedHeight >= 80) {
+                        bar.style.height = '100px';
+                        bar.dataset.volume = 'weak';
+                    } else {
+                        bar.style.height = '40px';
+                        bar.dataset.volume = 'none';
+                    }
+                };
+
+                const onMouseUp = () => {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                };
+
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
             });
-        }
-
-        // 音を再生
-        function playClick(index) {
-            const sound = sounds[accents[index % accents.length]];
-            sound.currentTime = 0;
-            sound.play();
-        }
-
-        // メトロノームを開始
-        function startMetronome() {
-            const bpm = parseInt(document.getElementById("bpm").value, 10);
-            const tempo = parseInt(document.getElementById("tempo").value, 10);
-            const intervalTime = (60000 / bpm);
-
-            stopMetronome(); // 二重再生防止
-
-            let beat = 0;
-            intervalId = setInterval(() => {
-                playClick(beat);
-                updateIndicator(beat, tempo);
-                beat++;
-            }, intervalTime);
-        }
-
-        // メトロノームを停止
-        function stopMetronome() {
-            clearInterval(intervalId);
-        }
-
-        // 初期状態のインジケーターを設定
-        setupIndicators();
+        });
     </script>
 </body>
 </html>
